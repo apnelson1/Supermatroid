@@ -1,5 +1,5 @@
 import Mathlib.Order.Minimal
-import LatticeMatroid.Supermatroid.Indep
+import Supermatroid.Indep
 
 /-
 Here we give two alternative definitions for a `Supermatroid`.

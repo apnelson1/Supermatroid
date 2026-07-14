@@ -1,4 +1,4 @@
-import LatticeMatroid.Supermatroid.Basic
+import Supermatroid.Basic
 
 open OrderDual Set
 

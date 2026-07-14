@@ -1,5 +1,5 @@
-import LatticeMatroid.ModularLattice
-import LatticeMatroid.Continuous
+import Supermatroid.Prelim.ModularLattice
+import Supermatroid.Prelim.Continuous
 
 open OrderDual Set
 
