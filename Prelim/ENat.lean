@@ -44,11 +44,6 @@ theorem nat_induction' {motive : ℕ∞ → Prop} (a : ℕ∞) (zero : motive 0)
   lift n to ℕ using hn.ne
   exact h n
 
--- this won't fire as `simp` without an explicit `ENat` version.
-@[simp]
-protected theorem add_eq_top : x + y = ⊤ ↔ x = ⊤ ∨ y = ⊤ :=
-  WithTop.add_eq_top
-
 protected theorem add_ne_top : x + y ≠ ⊤ ↔ x ≠ ⊤ ∧ y ≠ ⊤ := by
   simp
 
