@@ -1,0 +1,423 @@
+import Mathlib.Data.ENat.Lattice -- inefficient import
+import Mathlib.Tactic.ENatToNat
+import Mathlib.Tactic.Recall
+
+open WithTop
+
+namespace ENat
+
+variable {a b c x y m n : ℕ∞}
+
+
+-- LinearOrderedCommMonoidWithZero ℕ∞ is not true anymore
+-- https://leanprover.zulipchat.com/#narrow/channel/116290-rss/topic/Recent.20Commits.20to.20mathlib4.3Amaster/near/566931076
+
+lemma eq_zero_or_exists_eq_add_one (a : ℕ∞) : a = 0 ∨ ∃ i, a = i + 1 := by
+  obtain (a | a | a) := a
+  · exact .inr ⟨⊤, rfl⟩
+  · exact .inl rfl
+  exact .inr ⟨a, rfl⟩
+
+@[elab_as_elim]
+def recTopZeroCoe {C : ℕ∞ → Sort*} (top : C ⊤) (zero : C 0) (coe : (a : ℕ) → C ↑(a + 1)) (n : ℕ∞) :
+    C n := by
+  cases n with
+  | top => assumption
+  | coe n =>
+  · cases n with
+  | zero => assumption
+  | succ n => exact coe n
+
+@[elab_as_elim]
+lemma recZeroSucc {C : ℕ∞ → Prop} (zero : C 0) (coe : (a : ℕ∞) → C (a + 1)) (n : ℕ∞) : C n := by
+  obtain rfl | ⟨k, rfl⟩ := n.eq_zero_or_exists_eq_add_one
+  · assumption
+  exact coe k
+
+/-- A version of `ENat.nat_induction'` which stays in the type `ℕ∞`. -/
+@[elab_as_elim]
+theorem nat_induction' {motive : ℕ∞ → Prop} (a : ℕ∞) (zero : motive 0)
+    (succ : ∀ n : ℕ∞, n < ⊤ → motive n → motive (n + 1))
+    (top : (∀ n < ⊤, motive n) → motive ⊤) : motive a := by
+  refine nat_induction (motive := motive) _ zero (fun n hn ↦ succ n (by simp) hn)
+    fun h ↦ top fun n hn ↦ ?_
+  lift n to ℕ using hn.ne
+  exact h n
+
+-- this won't fire as `simp` without an explicit `ENat` version.
+@[simp]
+protected theorem add_eq_top : x + y = ⊤ ↔ x = ⊤ ∨ y = ⊤ :=
+  WithTop.add_eq_top
+
+protected theorem add_ne_top : x + y ≠ ⊤ ↔ x ≠ ⊤ ∧ y ≠ ⊤ := by
+  simp
+
+protected theorem top_mul_eq_ite (a : ℕ∞) : ⊤ * a = if a = 0 then 0 else ⊤ := by
+  split_ifs with h
+  · simp [h]
+  simp [top_mul h]
+
+protected theorem mul_top_eq_ite (a : ℕ∞) : a * ⊤ = if a = 0 then 0 else ⊤ := by
+  rw [mul_comm, ENat.top_mul_eq_ite]
+
+attribute [simp] ENat.coe_inj ENat.coe_le_coe ENat.coe_lt_coe ENat.coe_ne_top ENat.coe_lt_top
+
+@[simp]
+protected lemma ofNat_lt_top {n : ℕ} [n.AtLeastTwo] : (ofNat(n) : ℕ∞) < ⊤ :=
+  ENat.coe_lt_top n
+
+@[simp]
+protected lemma ofNat_le_ofNat {m n : ℕ} [m.AtLeastTwo] [n.AtLeastTwo] :
+    (ofNat(m) : ℕ∞) ≤ (ofNat(n) : ℕ∞) ↔ m ≤ n := by
+  refine ⟨fun h ↦ ?_, fun h ↦ ?_⟩
+  · simpa using toNat_le_toNat h (by simp)
+  rwa [← ENat.coe_le_coe] at h
+
+@[simp]
+protected lemma ofNat_lt_ofNat {m n : ℕ} [m.AtLeastTwo] [n.AtLeastTwo] :
+    (ofNat(m) : ℕ∞) < (ofNat(n) : ℕ∞) ↔ m < n := by
+  rw [← not_le, ENat.ofNat_le_ofNat, not_le]
+
+@[simp]
+protected lemma ofNat_inj {m n : ℕ} [m.AtLeastTwo] [n.AtLeastTwo] :
+    (ofNat(m) : ℕ∞) = (ofNat(n) : ℕ∞) ↔ m = n := by
+  simp only [OfNat.ofNat_eq_ofNat, le_antisymm_iff]
+  exact Iff.rfl
+
+@[simp]
+protected lemma one_lt_ofNat {n : ℕ} [n.AtLeastTwo] : (1 : ℕ∞) < ofNat(n) := by
+  change 1 < (n : ℕ∞)
+  have hlt : 1 < n := by exact Nat.AtLeastTwo.prop
+  rwa [← ENat.coe_lt_coe] at hlt
+
+@[simp]
+protected lemma zero_lt_ofNat {n : ℕ} [n.AtLeastTwo] : (0 : ℕ∞) < ofNat(n) := by
+  exact lt_of_le_of_lt (zero_le_one' _) ENat.one_lt_ofNat
+
+@[simp]
+protected lemma one_le_ofNat {n : ℕ} [n.AtLeastTwo] : (1 : ℕ∞) ≤ ofNat(n) :=
+  ENat.one_lt_ofNat.le
+
+@[simp]
+protected lemma not_ofNat_le_one {n : ℕ} [n.AtLeastTwo] : ¬ ofNat(n) ≤ (1 : ℕ∞) := by
+  simp [← not_lt]
+
+@[simp]
+protected lemma one_le_coe {n : ℕ} : (1 : ℕ∞) ≤ n ↔ 1 ≤ n := by
+  rw [← ENat.coe_one, ENat.coe_le_coe]
+
+@[simp]
+protected lemma coe_le_one {n : ℕ} : (n : ℕ∞) ≤ 1 ↔ n ≤ 1 := by
+  rw [← ENat.coe_one, ENat.coe_le_coe]
+
+@[simp]
+protected lemma coe_lt_one {n : ℕ} : (n : ℕ∞) < 1 ↔ n = 0 := by
+  rw [← ENat.coe_one, coe_lt_coe, Nat.lt_one_iff]
+
+@[simp]
+protected lemma coe_eq_one {n : ℕ} : (n : ℕ∞) = 1 ↔ n = 1 := by
+  rw [← coe_one, ENat.coe_inj]
+
+protected lemma coe_eq_ofNat {n : ℕ} [n.AtLeastTwo] : (n : ℕ∞) = ofNat(n) := rfl
+
+@[simp]
+protected lemma coe_le_ofNat {m n : ℕ} [n.AtLeastTwo] : (m : ℕ∞) ≤ ofNat(n) ↔ m ≤ n :=
+  ENat.coe_le_coe
+
+@[simp]
+protected lemma coe_lt_ofNat {m n : ℕ} [n.AtLeastTwo] : (m : ℕ∞) < ofNat(n) ↔ m < n :=
+  ENat.coe_lt_coe
+
+@[simp]
+protected lemma ofNat_le_coe {m n : ℕ} [m.AtLeastTwo] : ofNat(m) ≤ (n : ℕ∞) ↔ m ≤ n :=
+  ENat.coe_le_coe
+
+@[simp]
+protected lemma ofNat_lt_coe {m n : ℕ} [m.AtLeastTwo] : ofNat(m) < (n : ℕ∞) ↔ m < n :=
+  ENat.coe_lt_coe
+
+@[simp]
+protected lemma coe_eq_ofNat_iff {m n : ℕ} [n.AtLeastTwo] : (m : ℕ∞) = ofNat(n) ↔ m = n := by
+  rw [← ENat.coe_eq_ofNat (n := n), ENat.coe_inj]
+
+@[simp]
+protected lemma zero_le {n : ℕ∞} : (0 : ℕ∞) ≤ n :=
+  zero_le ..
+
+@[simp]
+lemma ofNat_ne_zero {n : ℕ} [n.AtLeastTwo] : (ofNat(n) : ℕ∞) ≠ 0 := by
+  intro h
+  obtain rfl : n = 0 := by simpa using congr_arg toNat h
+  have : 2 ≤ 0 := Nat.AtLeastTwo.prop
+  lia
+
+lemma top_mul_ofNat {n : ℕ} [n.AtLeastTwo] : (⊤ : ℕ∞) * ofNat(n) = ⊤ := by
+  simp only [ne_eq, ofNat_ne_zero, not_false_eq_true, top_mul]
+
+@[simp]
+protected lemma tsub_add_cancel_iff_le : b - a + a = b ↔ a ≤ b := by
+  enat_to_nat
+  · simp
+  · simp
+  lia
+
+protected lemma add_tsub_cancel (hab : a ≤ b) (hb : b ≠ ⊤) : a + b - a = b := by
+  enat_to_nat
+  · lia
+  · simp
+  lia
+
+protected lemma add_tsub_cancel_right (hb : b ≠ ⊤) : a + b - b = a := by
+  enat_to_nat <;> lia
+
+
+  -- have := @ofNat_eq_coe ℕ∞ _ n _ 0
+  -- rw [Ne, ← this]
+
+  -- rw [Ne, ← coe_zero, ofNat_eq_coe]
+
+  -- change (n : ℕ) ≠ 0
+  -- obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le (show 2 ≤ n from Nat.AtLeastTwo.prop)
+  -- rw [ofNat_eq_coe]
+
+
+
+@[simp]
+protected lemma one_le_two : (1 : ℕ∞) ≤ 2 :=
+  le_add_self (α := ℕ∞) (a := 1) (b := 1)
+
+@[simp]
+protected lemma coe_eq_zero (a : ℕ) : (a : ℕ∞) = 0 ↔ a = 0 := by
+  cases a with simp
+
+theorem mul_eq_top_iff : a * b = ⊤ ↔ (a = ⊤ ∧ b ≠ 0) ∨ (a ≠ 0 ∧ b = ⊤) := by
+  cases a with
+  | top => simp +contextual [ENat.top_mul_eq_ite]
+  | coe a =>
+  cases b with
+  | top => simp +contextual [ENat.mul_top_eq_ite]
+  | coe b => simp only [coe_ne_top, ne_eq, false_and, and_false, or_self, ← coe_mul]
+
+@[simp]
+protected lemma ofNat_mul_eq_top_iff {n : ℕ} [n.AtLeastTwo] {a : ℕ∞} :
+    ofNat(n) * a = ⊤ ↔ a = ⊤ := by
+  simp [mul_eq_top_iff]
+
+@[simp]
+protected lemma mul_ofNat_eq_top_iff {n : ℕ} [n.AtLeastTwo] {a : ℕ∞} :
+    a * ofNat(n) = ⊤ ↔ a = ⊤ := by
+  simp [mul_eq_top_iff]
+
+@[simp]
+protected lemma coe_mul_eq_top_iff {n : ℕ} {a : ℕ∞} : a * n = ⊤ ↔ a = ⊤ ∧ n ≠ 0 := by
+  simp [mul_eq_top_iff]
+
+@[simp]
+protected lemma mul_coe_eq_top_iff {n : ℕ} {a : ℕ∞} : n * a = ⊤ ↔ a = ⊤ ∧ n ≠ 0 := by
+  simp [mul_eq_top_iff, and_comm]
+
+@[simp]
+protected theorem add_eq_left_iff {a b : ℕ∞} : a + b = a ↔ a = ⊤ ∨ b = 0 := by
+  cases a with
+  | top => simp
+  | coe a => cases b with | top => simp | coe b => norm_cast; simp
+
+@[simp]
+protected theorem add_eq_right_iff {a b : ℕ∞} : a + b = b ↔ a = 0 ∨ b = ⊤ := by
+  rw [add_comm, ENat.add_eq_left_iff, or_comm]
+
+@[simp]
+protected theorem eq_add_right_iff {a b : ℕ∞} : b = a + b ↔ a = 0 ∨ b = ⊤ := by
+  rw [eq_comm, ENat.add_eq_right_iff]
+
+@[simp]
+protected theorem eq_add_left_iff {a b : ℕ∞} : a = a + b ↔ b = 0 ∨ a = ⊤ := by
+  rw [eq_comm, ENat.add_eq_left_iff, or_comm]
+
+@[simp]
+protected theorem add_le_left_iff {a b : ℕ∞} : a + b ≤ a ↔ a = ⊤ ∨ b = 0 := by
+  rw [← ENat.add_eq_left_iff, le_antisymm_iff, and_iff_left (by simp)]
+
+@[simp]
+protected theorem add_le_right_iff {a b : ℕ∞} : a + b ≤ b ↔ a = 0 ∨ b = ⊤ := by
+  rw [add_comm, ENat.add_le_left_iff, or_comm]
+
+@[simp]
+lemma add_one_le_add_one_iff {a b : ℕ∞} : a + 1 ≤ b + 1 ↔ a ≤ b :=
+  ENat.add_le_add_iff_right (by simp)
+
+@[simp]
+lemma one_add_le_one_add_iff {a b : ℕ∞} : 1 + a ≤ 1 + b ↔ a ≤ b :=
+  ENat.add_le_add_iff_left (by simp)
+
+@[simp]
+lemma add_one_lt_add_one_iff {a b : ℕ∞} : a + 1 < b + 1 ↔ a < b :=
+  ENat.add_lt_add_iff_right (by simp)
+
+@[simp]
+lemma one_add_lt_one_add_iff {a b : ℕ∞} : 1 + a < 1 + b ↔ a < b :=
+  ENat.add_lt_add_iff_left (by simp)
+
+@[simp]
+protected lemma add_one_inj {a b : ℕ∞} : a + 1 = b + 1 ↔ a = b := by
+  rw [add_left_inj_of_ne_top (by simp)]
+
+@[simp]
+protected lemma one_add_inj {a b : ℕ∞} : 1 + a = 1 + b ↔ a = b := by
+  rw [add_comm 1, add_comm 1, ENat.add_one_inj]
+
+@[simp]
+protected theorem eq_left_add_iff : a = a + b ↔ a = ⊤ ∨ b = 0 := by
+  rw [eq_comm, ENat.add_eq_left_iff]
+
+@[simp]
+protected theorem eq_right_add_iff : b = a + b ↔ b = ⊤ ∨ a = 0 := by
+  rw [eq_comm, ENat.add_eq_right_iff, or_comm]
+
+@[simp]
+protected theorem lt_add_left_iff : a < a + b ↔ a ≠ ⊤ ∧ b ≠ 0 := by
+  simp [lt_iff_le_and_ne, and_comm]
+
+@[simp]
+protected theorem lt_add_right_iff : a < b + a ↔ a ≠ ⊤ ∧ b ≠ 0 := by
+  rw [add_comm, ENat.lt_add_left_iff, and_comm]
+
+@[simp]
+protected lemma add_eq_add_left_iff : a + b = a + c ↔ b = c ∨ a = ⊤ := by
+  cases a with simp
+
+@[simp]
+protected lemma add_eq_add_right_iff : a + c = b + c ↔ a = b ∨ c = ⊤ := by
+  simp [add_comm _ c, ENat.add_eq_add_left_iff]
+
+@[simp]
+protected lemma add_le_add_left_iff : a + b ≤ a + c ↔ b ≤ c ∨ a = ⊤ := by
+  cases a with simp
+
+@[simp]
+protected lemma add_le_add_right_iff : a + c ≤ b + c ↔ a ≤ b ∨ c = ⊤ := by
+  simp [add_comm _ c, ENat.add_le_add_left_iff]
+
+@[simp]
+protected lemma add_lt_add_left_iff : a + b < a + c ↔ b < c ∧ a ≠ ⊤ := by
+  cases a with simp
+
+@[simp]
+protected lemma add_lt_add_right_iff : a + c < b + c ↔ a < b ∧ c ≠ ⊤ := by
+  simp [add_comm _ c, ENat.add_lt_add_left_iff]
+
+@[simp]
+protected lemma lt_add_one_self_iff {a : ℕ∞} : a < a + 1 ↔ a ≠ ⊤ := by
+  simp
+
+@[simp]
+protected lemma lt_one_add_self_iff {a : ℕ∞} : a < 1 + a ↔ a ≠ ⊤ := by
+  simp
+
+protected lemma add_one_eq_add_one_iff {a b : ℕ∞} : a + 1 = b + 1 ↔ a = b := by
+  simp
+
+protected lemma one_add_eq_one_add_iff {a b : ℕ∞} : a + 1 = b + 1 ↔ a = b := by
+  simp
+
+lemma add_sub_cancel_right (a : ℕ∞) (hb : b ≠ ⊤) : a + b - b = a := by
+  lift b to ℕ using hb
+  cases a with
+  | top => simp
+  | coe a =>
+    norm_cast
+    simp
+
+
+lemma add_sub_cancel_left (b : ℕ∞) (ha : a ≠ ⊤) : a + b - a = b := by
+  rw [add_comm, add_sub_cancel_right _ ha]
+
+lemma sub_eq_iff_eq_add {a k : ℕ∞} (hka : k ≤ a) (hne : k ≠ ⊤) : a - k = b ↔ a = b + k := by
+  obtain ⟨c, rfl⟩ := exists_add_of_le hka
+  rw [add_sub_cancel_left _ hne, add_comm, add_left_inj_of_ne_top hne]
+
+protected lemma mul_lt_mul_right_iff (hc0 : c ≠ 0) (hc : c ≠ ⊤) : a * c < b * c ↔ a < b := by
+  rw [lt_iff_le_and_ne, ENat.mul_le_mul_right_iff hc0 hc, Ne,
+    (ENat.mul_left_strictMono hc0 hc).injective.eq_iff, lt_iff_le_and_ne]
+
+protected lemma mul_lt_mul_left_iff (hc0 : c ≠ 0) (hc : c ≠ ⊤) : c * a < c * b ↔ a < b := by
+  simp_rw [mul_comm c, ENat.mul_lt_mul_right_iff hc0 hc]
+
+section Parity
+
+@[simp]
+protected lemma even_top : Even (⊤ : ℕ∞) :=
+  ⟨⊤, by simp⟩
+
+@[simp]
+protected lemma odd_top : Odd (⊤ : ℕ∞) :=
+  ⟨⊤, by enat_to_nat⟩
+
+@[simp]
+protected lemma even_natCast {n : ℕ} : Even (n : ℕ∞) ↔ Even n := by
+  refine ⟨fun ⟨r, hr⟩ ↦ ?_, fun ⟨r, hr⟩ ↦ ⟨r, ?_⟩⟩
+  · lift r to ℕ using (by rintro rfl; simp at hr)
+    obtain rfl : n = r + r := by rwa [← ENat.coe_add, ENat.coe_inj] at hr
+    exact Even.add_self r
+  rwa [← ENat.coe_add, ENat.coe_inj]
+
+@[simp]
+protected lemma odd_natCast {n : ℕ} : Odd (n : ℕ∞) ↔ Odd n := by
+  refine ⟨fun ⟨r, hr⟩ ↦ ?_, fun ⟨r, hr⟩ ↦ ⟨r, ?_⟩⟩
+  · lift r to ℕ using (by rintro rfl; enat_to_nat)
+    norm_cast at hr
+    subst hr
+    exact odd_two_mul_add_one r
+  simp [hr]
+
+protected lemma not_odd_iff_even {n : ℕ∞} (hn : n ≠ ⊤) : ¬ Odd n ↔ Even n := by
+  lift n to ℕ using hn
+  simp
+
+protected lemma not_even_iff_odd {n : ℕ∞} (hn : n ≠ ⊤) : ¬ Even n ↔ Odd n := by
+  rw [← ENat.not_odd_iff_even hn, not_not]
+
+protected lemma even_or_odd (ha : a ≠ ⊤) : Even a ∨ Odd a := by
+  lift a to ℕ using ha
+  simp only [ENat.even_natCast, ENat.odd_natCast]
+  exact Nat.even_or_odd a
+
+protected lemma even_add {m n : ℕ∞} (hm : m ≠ ⊤) (hn : n ≠ ⊤) :
+    Even (m + n) ↔ (Even m ↔ Even n) := by
+  lift m to ℕ using hm
+  lift n to ℕ using hn
+  norm_cast
+  simp only [ENat.even_natCast]
+  rw [Nat.even_add]
+
+end Parity
+
+-- This is here for parity with `Nat`; `Nat` has `Nat.sInf_mem` with almost the same type signature.
+lemma sInf_mem {s : Set ℕ∞} (h : s.Nonempty) : sInf s ∈ s :=
+  csInf_mem h
+
+lemma exists_eq_iInf₂ {ι : Sort*} {κ : ι → Sort*} (f : (i : ι) → κ i → ℕ∞) (a₀ : ι) (b₀ : κ a₀) :
+    ∃ a b, f a b = ⨅ i, ⨅ j, f i j := by
+  have : Nonempty ι := ⟨a₀⟩
+  obtain ⟨a, ha⟩ := ENat.exists_eq_iInf (fun i ↦ ⨅ j, f i j)
+  rw [← ha]
+  by_cases htop : ⨅ j, f a j = ⊤
+  · exact ⟨a₀, b₀, le_antisymm (by simp [htop]) (by grw [ha, iInf₂_le])⟩
+  simp only [iInf_eq_top, not_forall] at htop
+  obtain ⟨b', hb'⟩ := htop
+  have : Nonempty (κ a) := ⟨b'⟩
+  obtain ⟨b, hb⟩ := ENat.exists_eq_iInf (f a)
+  exact ⟨a, b, hb⟩
+
+lemma exists_eq_biInf {ι : Type*} {s : Set ι} (f : ι → ℕ∞) (hs : s.Nonempty) :
+    ∃ a ∈ s, f a = ⨅ i ∈ s, f i := by
+  simpa using exists_eq_iInf₂ (ι := ι) (κ := fun i ↦ i ∈ s) (fun i _ ↦ f i) _ hs.some_mem
+
+lemma exists_eq_biSup_of_lt_top {ι : Type*} {s : Set ι} (hs : s.Nonempty)
+    (f : ι → ℕ∞) (hf : ⨆ i ∈ s, f i < ⊤) : ∃ a ∈ s, f a = ⨆ i ∈ s, f i := by
+  have := hs.to_subtype
+  rw [← iSup_subtype''] at ⊢ hf
+  obtain ⟨⟨a, has⟩, ha⟩ := ENat.exists_eq_iSup_of_lt_top (ι := s) (f := fun i ↦ f i) hf
+  exact ⟨a, has, ha⟩
+
+end ENat
